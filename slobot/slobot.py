@@ -200,6 +200,7 @@ class XMPP(Socket):
         self._bot.process(block=True)
 
     def _message(self, msg):
+        if msg['mucnick'] == self._config['nick']:
         if msg['type'] == 'groupchat':
             self.receive(msg['from'].bare, ('message', msg['from'].resource, msg['body']))
 
