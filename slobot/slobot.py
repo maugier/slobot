@@ -2,7 +2,7 @@
 
 import irc.bot
 import argparse
-from logging import debug, info, warn, error
+from logging import debug, info, warn, error, exception
 import sys
 import threading
 import yaml
@@ -62,8 +62,8 @@ class Config:
 
 class DummyRouter:
     """ A debugging router that will simply dump incoming messages to stderr """
-    def receive(self, chan, message):
-        print("[{0}] {1}".format(chan, message), file=sys.stderr)
+    def receive(self, source, chan, message):
+        print("[{0}:{1}] {2}".format(source.key, chan, message), file=sys.stderr)
 
 
 class Socket():
@@ -114,10 +114,10 @@ class FIFO(Socket):
             try:
                 with open(self._config['path'], 'r') as handle:
                     for line in handle:
-                        self.receive("*", ('notice', line))
+                        self.receive("*", ('notice', line.strip))
                 
             except Exception as e:
-                logging.exception("Could not read from fifo")
+                exception("Could not read from fifo")
 
 class IRC(Socket):
     def run(self):

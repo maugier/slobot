@@ -1,0 +1,16 @@
+%YAML 1.1
+---
+# SLB Configuration file sample
+# The different communication sockets we will spawn. Name is free-form string.
+sockets:
+    fifo:
+        type: fifo
+        path: /tmp/ircfifo
+    console:
+        type: console
+
+
+routes:
+    -
+        fifo: "*" 
+        console: "SLO"

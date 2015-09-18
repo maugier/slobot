@@ -8,7 +8,7 @@ sockets:
         nick: NickName
         user: slobot
         real: "Jabber/IRC Bridge"
-        server: irc.freenode.net
+        servers: irc.freenode.net
         password: your_password_here
 
     jabber:
@@ -20,6 +20,9 @@ sockets:
     fifo:
         type: fifo
         path: /tmp/ircfifo
+
+    console:
+        type: console
 
 
 routes:
