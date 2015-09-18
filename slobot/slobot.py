@@ -93,7 +93,7 @@ class Socket():
 
     def receive(self, chan, message):
         """ Call this from the run() method when you receive a message. Indicate the channel on which you received it..
-            message should be a tuple (type, text) where type can be 'message' or 'notice'."""
+            message should be a tuple (type, sender, text) where type can be 'message' or 'notice'."""
         debug("Receive [{0}/{1}]: {2}".format(self.key, chan, message))
         if message[0] == 'message' and message[1][0:4] == '!who' and not self.readonly:
             self._router.users(self, chan)
@@ -116,7 +116,7 @@ class Socket():
 
 class Console(Socket):
     """ A socket type that simply dumps messages to stdout. """
-    def start():
+    def start(self):
         return
     def send(self, chan, message):
         print("[{0}] {1}".format(chan, message))
@@ -129,7 +129,7 @@ class FIFO(Socket):
             try:
                 with open(self._config['path'], 'r') as handle:
                     for line in handle:
-                        self.receive("*", ('notice', line.strip()))
+                        self.receive("*", ('notice', None, line.strip()))
                 
             except Exception as e:
                 exception("Could not read from fifo")
@@ -157,10 +157,12 @@ class IRC(Socket):
             def on_pubmsg(bot, c, e):
                 nick = NickMask(e.source).nick
                 debug("Sending irc message from {0}/{1}/{2}".format(self.key, e.target, nick))
-                self.receive(e.target, ('message', "<{0}> {1}".format(nick, e.arguments[0])))
+                self.receive(e.target, ('message', nick, e.arguments[0]))
 
             def on_notice(bot, c, e):
-                self.receive(e.target, ('notice', e.arguments[0]))
+                nick = NickMask(e.source).nick
+                debug("Sending irc message from {0}/{1}/{2}".format(self.key, e.target, nick))
+                self.receive(e.target, ('notice', nick, e.arguments[0]))
 
         self.bot = Bot([irc.bot.ServerSpec(server, 6667)], nick, real)
 
@@ -168,7 +170,10 @@ class IRC(Socket):
         self.bot.start()
 
     def send(self, chan, message):
-        (typ, contents) = message
+        (typ, sender, contents) = message
+        if sender is not None:
+            contents = "<{0}> {1}".format(sender, contents)
+        
         if typ == 'message':
             self.bot.connection.privmsg(chan, contents)
         elif typ == 'notice':
@@ -196,7 +201,7 @@ class XMPP(Socket):
 
     def _message(self, msg):
         if msg['type'] == 'groupchat':
-            self.receive(msg['from'].bare, ('message', "<{0}> {1}".format(msg['from'].resource, msg['body'])))
+            self.receive(msg['from'].bare, ('message', msg['from'].resource, msg['body']))
 
     def _session_start(self, evt):
         info("[{0}] XMPP Connected".format(self.key))
@@ -206,7 +211,11 @@ class XMPP(Socket):
             self._bot.plugin['xep_0045'].joinMUC(room, self._config['nick'], wait=False)
 
     def send(self, channel, message):
-        self._bot.send_message(mto=channel, mbody=message[1])
+        if message[1] is not None:
+            body = "<{0}> {1}".format(message[1], message[2])
+        else:
+            body = message[2]
+        self._bot.send_message(mto=channel, mbody=body, mtype='groupchat')
 
     def users(self, channel):
         return self._bot.plugin['xep_0045'].getRoster(channel)
@@ -259,6 +268,7 @@ class Router:
 
     def start(self):
         for (key, socket) in self._sockets.items():
+            info("Starting {0}".format(socket))
             socket.start()
 
 def main():
