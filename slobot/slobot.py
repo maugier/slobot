@@ -105,7 +105,7 @@ class Socket():
 class Console(Socket):
     def start():
         return
-    def receive(self, chan, message):
+    def send(self, chan, message):
         info("[{0}] {1}".format(chan, message))
 
 
@@ -189,11 +189,14 @@ class Router:
             if route.get(source.key) == source_chan:
                 for (dest_key, dest_chan) in route.items():
                     if source.key == dest_key:
-                        next
+                        continue
                     dest = self._sockets[dest_key]
                     if dest.readonly:
-                        next
-                    dest.send(dest_chan, message)
+                        continue
+                    try:
+                        dest.send(dest_chan, message)
+                    except Exception:
+                        exception("Could not send to [{0}/{1}]".format(dest_key, dest_chan))
 
     def start(self):
         for (key, socket) in self._sockets.items():
