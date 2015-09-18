@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import irc.bot
+from irc.client import NickMask
 import argparse
 import logging
 from logging import debug, info, warn, error, exception
@@ -9,6 +10,8 @@ import sys
 import threading
 import yaml
 
+logger = logging.getLogger(__name__)
+(debug, info, warn, error, exception) = (logger.debug, logger.info, logger.warn, logger.error, logger.exception)
 
 mandatory_config = {'irc': ['nick', 'server'], 
                     'xmpp': ['nick', 'jid', 'password'],
@@ -152,8 +155,9 @@ class IRC(Socket):
                     c.join(chan)
 
             def on_pubmsg(bot, c, e):
-                debug("Sending irc message from {0}/{1}".format(self.key, e.target))
-                self.receive(e.target, ('message', e.arguments[0]))
+                nick = NickMask(e.source).nick
+                debug("Sending irc message from {0}/{1}/{2}".format(self.key, e.target, nick))
+                self.receive(e.target, ('message', "<{0}> {1}".format(nick, e.arguments[0])))
 
             def on_notice(bot, c, e):
                 self.receive(e.target, ('notice', e.arguments[0]))
@@ -179,12 +183,12 @@ class IRC(Socket):
 
 class XMPP(Socket):
     def __init__(self, router, key, config):
-        xmpp.register_plugin('xep_0045')
         super().__init__(router, key, config)
         bot = sleekxmpp.ClientXMPP(self._config['jid'], self._config['password'])
-        self._bot = bot
+        bot.register_plugin('xep_0045')
         bot.add_event_handler('session_start', self._session_start)
         bot.add_event_handler('groupchat_message', self._message)
+        self._bot = bot
 
     def run(self):
         self._bot.connect()
@@ -192,7 +196,7 @@ class XMPP(Socket):
 
     def _message(self, msg):
         if msg['type'] == 'groupchat':
-            self.receive(msg['from'], ('message', msg['body']))
+            self.receive(msg['from'].bare, ('message', "<{0}> {1}".format(msg['from'].resource, msg['body'])))
 
     def _session_start(self, evt):
         info("[{0}] XMPP Connected".format(self.key))
@@ -205,7 +209,7 @@ class XMPP(Socket):
         self._bot.send_message(mto=channel, mbody=message[1])
 
     def users(self, channel):
-        return [] #TODO
+        return self._bot.plugin['xep_0045'].getRoster(channel)
 
 socket_types = {
     'console': Console,
