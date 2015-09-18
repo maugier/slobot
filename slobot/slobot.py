@@ -2,6 +2,7 @@
 
 import irc.bot
 import argparse
+import logging
 from logging import debug, info, warn, error, exception
 import sys
 import threading
@@ -9,7 +10,7 @@ import yaml
 
 
 mandatory_config = {'irc': ['nick', 'server'], 
-                    'jabber': ['nick', 'id', 'password'],
+                    'xmpp': ['nick', 'id', 'password'],
                     'fifo': ['path'],
                     'console': [] }
 
@@ -78,24 +79,24 @@ class Socket():
             self._router = router
 
     def start(self):
-        threading.Thread(target=self.run, daemon=True).start()
+        threading.Thread(target=self.run).start()
 
     def run(self):
         raise NotImplementedError
 
     def receive(self, chan, message):
-        debug
+        debug("Receive [{0}/{1}]: {2}".format(self.key, chan, message))
         self._router.receive(self, chan, message)
 
     def register(self, chan):
-        debug("Socket {0} registering {1}", self.key, chan)
-        self._channels.append(chan)
+        debug("Socket {0} registering {1}".format(self.key, chan))
+        self._channels.add(chan)
 
     def send(self, chan, message):
         raise NotImplementedError
 
-    def users(self):
-        raise NotImplementedError
+    def users(self, channel):
+        return None
 
 
                 
@@ -114,13 +115,15 @@ class FIFO(Socket):
             try:
                 with open(self._config['path'], 'r') as handle:
                     for line in handle:
-                        self.receive("*", ('notice', line.strip))
+                        self.receive("*", ('notice', line.strip()))
                 
             except Exception as e:
                 exception("Could not read from fifo")
 
 class IRC(Socket):
-    def run(self):
+    def __init__(self, router, key, config):
+        super().__init__(router, key, config)
+
         nick = self._config['nick']
         server = self._config['server']
         user = self._config.get('user', 'slobot')
@@ -129,17 +132,31 @@ class IRC(Socket):
 
         class Bot(irc.bot.SingleServerIRCBot):
             def on_welcome(bot, c, e):
+                debug("IRC {0} connected".format(self.key))
                 for chan in self._channels:
                     c.join(chan)
 
             def on_pubmsg(bot, c, e):
+                debug("Sending irc message from {0}/{1}".format(self.key, e.target))
                 self.receive(e.target, ('message', e.arguments[0]))
 
             def on_notice(bot, c, e):
                 self.receive(e.target, ('notice', e.arguments[0]))
 
-        bot = Bot(irc.bot.ServerSpec(server, 6667), nick, real)
-        bot.start()
+        self.bot = Bot([irc.bot.ServerSpec(server, 6667)], nick, real)
+
+    def run(self):
+        self.bot.start()
+
+    def send(self, chan, message):
+        (typ, contents) = message
+        if typ == 'message':
+            self.bot.connection.privmsg(chan, contents)
+        elif typ == 'notice':
+            self.bot.connection.notice(chan, contents)
+
+    def users(self, channel):
+        return [] #TODO
     
 
 class XMPP(Socket):
@@ -153,19 +170,24 @@ socket_types = {
 }
 
 class Router:
-    def __init__(self, sockets, routes):
+    def __init__(self, config):
+        routes = config.routes
+        sockets = config.sockets
+
         self._routes = routes
         self._sockets = {}
+
         for (key, conf) in sockets.items():
             self._sockets[key] = socket_types[conf['type']](self,key,conf)
-        for (key, chan) in routes.items():
-            self._sockets[key].register(chan)
+        for route in routes:
+            for (key, chan) in route.items():
+                self._sockets[key].register(chan)
 
 
     def receive(self, source, source_chan, message):
         for route in self._routes:
             if route.get(source.key) == source_chan:
-                for (dest_key, dest_chan) in route:
+                for (dest_key, dest_chan) in route.items():
                     if source.key == dest_key:
                         next
                     dest = self._sockets[dest_key]
@@ -174,16 +196,27 @@ class Router:
                     dest.send(dest_chan, message)
 
     def start(self):
-        for (key, socket) in self._sockets:
+        for (key, socket) in self._sockets.items():
             socket.start()
 
 def main():
+    logging.basicConfig(level=logging.DEBUG)
+
     parser = argparse.ArgumentParser(description="Swisslinux.org's Jabber/IRC Bridge")
-    parser.add_argument('config', nargs=1, help='YAML config file')
+    parser.add_argument('config', help='YAML config file')
 
     args = parser.parse_args()
 
+    info("SLoBot starting")
+
     config = Config(args.config)
+    info("Configuration loaded")
+
+    router = Router(config)
+    info("Starting router")
+    router.start()
+
+
 
 
 if __name__ == '__main__':
