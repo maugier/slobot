@@ -69,6 +69,7 @@ class DummyRouter:
 
 
 class Socket():
+    """ Base class for a Socket, that has its own thread to read messages from a source, and can be sent messages to. """
     def __init__(self, router, key, config, readonly=False):
         self.readonly = readonly
         self.key = key
@@ -80,12 +81,16 @@ class Socket():
             self._router = router
 
     def start(self):
+        """ Launch the thread for this socket """
         threading.Thread(target=self.run).start()
 
     def run(self):
+        """ Override this with the behaviour of your socket """
         raise NotImplementedError
 
     def receive(self, chan, message):
+        """ Call this from the run() method when you receive a message. Indicate the channel on which you received it..
+            message should be a tuple (type, text) where type can be 'message' or 'notice'."""
         debug("Receive [{0}/{1}]: {2}".format(self.key, chan, message))
         if message[0] == 'message' and message[1][0:4] == '!who' and not self.readonly:
             self._router.users(self, chan)
@@ -93,10 +98,12 @@ class Socket():
             self._router.receive(self, chan, message)
 
     def register(self, chan):
+        """ This wil get called before start(), once for every channel appearing in the routes """
         debug("Socket {0} registering {1}".format(self.key, chan))
         self._channels.add(chan)
 
     def send(self, chan, message):
+        """ Override this with whatever needs to be done to send a message. The arguments will be in the same format as for the receive()."""
         raise NotImplementedError
 
     def users(self, channel):
@@ -105,13 +112,15 @@ class Socket():
 
 
 class Console(Socket):
+    """ A socket type that simply dumps messages to stdout. """
     def start():
         return
     def send(self, chan, message):
-        info("[{0}] {1}".format(chan, message))
+        print("[{0}] {1}".format(chan, message))
 
 
 class FIFO(Socket):
+    """ A socket type that reads messages from a unix fifo. The single name for the hardcoded channel is '*'. You cannot send to this channel. """
     def run(self):
         while(True):
             try:
@@ -122,7 +131,11 @@ class FIFO(Socket):
             except Exception as e:
                 exception("Could not read from fifo")
 
+    def send(self, chan, message):
+        return
+
 class IRC(Socket):
+    """ A socket type that talks IRC """
     def __init__(self, router, key, config):
         super().__init__(router, key, config)
 
@@ -166,11 +179,12 @@ class IRC(Socket):
 
 class XMPP(Socket):
     def __init__(self, router, key, config):
+        xmpp.register_plugin('xep_0045')
         super().__init__(router, key, config)
         bot = sleekxmpp.ClientXMPP(self._config['jid'], self._config['password'])
         self._bot = bot
         bot.add_event_handler('session_start', self._session_start)
-        bot.add_event_handler('message', self._message)
+        bot.add_event_handler('groupchat_message', self._message)
 
     def run(self):
         self._bot.connect()
@@ -184,6 +198,11 @@ class XMPP(Socket):
         info("[{0}] XMPP Connected".format(self.key))
         self._bot.send_presence();
         self._bot.get_roster();
+        for room in self._channels:
+            self._bot.plugin['xep_0045'].joinMUC(room, self._config['nick'], wait=False)
+
+    def send(self, channel, message):
+        self._bot.send_message(mto=channel, mbody=message[1])
 
     def users(self, channel):
         return [] #TODO
@@ -196,6 +215,7 @@ socket_types = {
 }
 
 class Router:
+    """ Manages a collection of sockets, and relays ingress messages to all linked outbound sockets """
     def __init__(self, config):
         routes = config.routes
         sockets = config.sockets
@@ -210,17 +230,18 @@ class Router:
                 self._sockets[key].register(chan)
 
     def dispatch(self, source, channel):
+        """ Generates all the valid destinations for a given source socket and channel """
         for route in self._routes:
             if route.get(source.key) == channel:
                 for (dest_key, dest_chan) in route.items():
                     if source.key != dest_key:
-                        yield (self._sockets[dest_key], dest_chan)
+                        dest = self._sockets[dest_key]
+                        if not dest.readonly:
+                            yield (self._sockets[dest_key], dest_chan)
 
 
     def receive(self, source, source_chan, message):
         for (dest, dest_chan) in self.dispatch(source, source_chan):
-            if dest.readonly:
-                continue
             try:
                 dest.send(dest_chan, message)
             except Exception:
@@ -230,7 +251,7 @@ class Router:
         for (dest, dest_chan) in self.dispatch(source, chan):
             users = dest.users(dest_chan)
             if users is not None:
-                source.send(chan, "Users on {0}: {1}.".format(dest.key, ', '.join(dest.users(dest_chan))))
+                source.send(chan, ('message', "Users on {0}: {1}.".format(dest.key, ', '.join(dest.users(dest_chan)))))
 
     def start(self):
         for (key, socket) in self._sockets.items():
