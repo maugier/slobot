@@ -9,7 +9,7 @@ setup(
         author_email='max@xolus.net',
         packages=['slobot'],
         license='GPL2',
-        install_requires=['irc','pyyaml','xmppy'],
+        install_requires=['irc','pyyaml','sleekxmpp'],
         entry_points={
                 'console_scripts': ['slobot = slobot:main']
         }

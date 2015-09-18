@@ -1,4 +1,5 @@
 %YAML 1.1
+---
 # SLB Configuration file sample
 
 # The different communication sockets we will spawn. Name is free-form string.
@@ -8,14 +9,14 @@ sockets:
         nick: NickName
         user: slobot
         real: "Jabber/IRC Bridge"
-        servers: irc.freenode.net
+        server: irc.freenode.net
         password: your_password_here
 
     jabber:
         type: xmpp
-        nick: SLB
-        id: "your_jid@server.org/resource"
+        jid: "slobot@xolus.net/slobot"
         password: your_password_here
+        nick: SLB
 
     fifo:
         type: fifo
