@@ -4,13 +4,14 @@ import irc.bot
 import argparse
 import logging
 from logging import debug, info, warn, error, exception
+import sleekxmpp
 import sys
 import threading
 import yaml
 
 
 mandatory_config = {'irc': ['nick', 'server'], 
-                    'xmpp': ['nick', 'id', 'password'],
+                    'xmpp': ['nick', 'jid', 'password'],
                     'fifo': ['path'],
                     'console': [] }
 
@@ -124,15 +125,15 @@ class IRC(Socket):
     def __init__(self, router, key, config):
         super().__init__(router, key, config)
 
-        nick = self._config['nick']
-        server = self._config['server']
-        user = self._config.get('user', 'slobot')
-        real = self._config.get('real', 'SLoBot Chat Bridge')
+        nick = config['nick']
+        server = config['server']
+        user = config.get('user', 'slobot')
+        real = config.get('real', 'SLoBot Chat Bridge')
 
 
         class Bot(irc.bot.SingleServerIRCBot):
             def on_welcome(bot, c, e):
-                debug("IRC {0} connected".format(self.key))
+                info("IRC {0} connected".format(self.key))
                 for chan in self._channels:
                     c.join(chan)
 
@@ -156,11 +157,32 @@ class IRC(Socket):
             self.bot.connection.notice(chan, contents)
 
     def users(self, channel):
-        return [] #TODO
+        try:
+            return self.bot.channels[channel].users()
+        except:
+            exception("Could not retrieve IRC users")
     
 
 class XMPP(Socket):
-    pass
+    def __init__(self, router, key, config):
+        super().__init__(router, key, config)
+        bot = sleekxmpp.ClientXMPP(self._config['jid'], self._config['password'])
+        self._bot = bot
+        bot.add_event_handler('session_start', self._session_start)
+        bot.add_event_handler('message', self._message)
+
+    def run(self):
+        self._bot.connect()
+        self._bot.process(block=True)
+
+    def _message(self, msg):
+        if msg['type'] == 'groupchat':
+            self.receive(msg['from'], ('message', msg['body']))
+
+    def _session_start(self, evt):
+        info("[{0}] XMPP Connected".format(self.key))
+        self._bot.send_presence();
+        self._bot.get_roster();
 
 socket_types = {
     'console': Console,
