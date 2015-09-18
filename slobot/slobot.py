@@ -87,7 +87,10 @@ class Socket():
 
     def receive(self, chan, message):
         debug("Receive [{0}/{1}]: {2}".format(self.key, chan, message))
-        self._router.receive(self, chan, message)
+        if message[0] == 'message' and message[1][0:4] == '!who' and not self.readonly:
+            self._router.users(self, chan)
+        else:
+            self._router.receive(self, chan, message)
 
     def register(self, chan):
         debug("Socket {0} registering {1}".format(self.key, chan))
@@ -100,8 +103,6 @@ class Socket():
         return None
 
 
-                
-        
 
 class Console(Socket):
     def start():
@@ -184,6 +185,9 @@ class XMPP(Socket):
         self._bot.send_presence();
         self._bot.get_roster();
 
+    def users(self, channel):
+        return [] #TODO
+
 socket_types = {
     'console': Console,
     'irc': IRC,
@@ -205,20 +209,28 @@ class Router:
             for (key, chan) in route.items():
                 self._sockets[key].register(chan)
 
+    def dispatch(self, source, channel):
+        for route in self._routes:
+            if route.get(source.key) == channel:
+                for (dest_key, dest_chan) in route.items():
+                    if source.key != dest_key:
+                        yield (self._sockets[dest_key], dest_chan)
+
 
     def receive(self, source, source_chan, message):
-        for route in self._routes:
-            if route.get(source.key) == source_chan:
-                for (dest_key, dest_chan) in route.items():
-                    if source.key == dest_key:
-                        continue
-                    dest = self._sockets[dest_key]
-                    if dest.readonly:
-                        continue
-                    try:
-                        dest.send(dest_chan, message)
-                    except Exception:
-                        exception("Could not send to [{0}/{1}]".format(dest_key, dest_chan))
+        for (dest, dest_chan) in self.dispatch(source, source_chan):
+            if dest.readonly:
+                continue
+            try:
+                dest.send(dest_chan, message)
+            except Exception:
+                exception("Could not send to [{0}/{1}]".format(dest_key, dest_chan))
+
+    def users(self, source, chan):
+        for (dest, dest_chan) in self.dispatch(source, chan):
+            users = dest.users(dest_chan)
+            if users is not None:
+                source.send(chan, "Users on {0}: {1}.".format(dest.key, ', '.join(dest.users(dest_chan))))
 
     def start(self):
         for (key, socket) in self._sockets.items():
