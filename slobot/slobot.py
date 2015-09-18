@@ -2,9 +2,14 @@
 
 from irc.bot import SingleServerIRCBot
 import argparse
+import sys
 import traceback
 import threading
 import yaml
+
+
+def log(*k, **a):
+    print(*k, file=sys.stderr, **a)
 
 mandatory_config = {'irc': ['nick', 'server'], 'jabber': ['nick', 'id', 'password'], 'fifo': ['path']}
 
@@ -12,6 +17,7 @@ class ConfigurationError(Exception):
     pass
 
 class Config:
+    """ Load and validate a config file """
     def __init__(self, path):
         with open(path, 'rb') as handle:
             blob = yaml.load(handle)
@@ -50,8 +56,9 @@ class Config:
                     pass #TODO check correct format for xmpp channel
 
 class DummyRouter:
+    """ A debugging router that will simply dump incoming messages to stderr """
     def receive(self, chan, message):
-        print("[{0}] {1}".format(chan, message)
+        log("[{0}] {1}".format(chan, message))
 
 
 class Socket():
@@ -83,7 +90,7 @@ class Console(Socket):
     def start():
         return
     def receive(self, chan, message):
-        print("[{0}] {1}".format(chan, message))
+        log("[{0}] {1}".format(chan, message))
 
 
 class FIFO(Socket):
@@ -94,11 +101,18 @@ class FIFO(Socket):
     def run(self):
         while(True):
             try:
-
-            except Exception as e:
+                with open(self._path, 'r') as handle:
+                    for line in handle:
+                        self.receive("*", ('notice', line))
                 
-            
-        
+            except Exception as e:
+                traceback.print_stack()
+
+class IRC(Socket):
+    pass
+
+class XMPP(Socket):
+    pass
 
 socket_types = {
     'console': Console,
@@ -113,9 +127,7 @@ class Router:
         self._sockets = {}
         for (key, conf) in sockets.items():
             self._sockets[key] = socket_types[conf['type']](self,key,conf)
-        
 
-    def get_source(self, source):
 
     def receive(self, source, source_chan, message):
         for route in self._routes:

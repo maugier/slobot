@@ -1,1 +1,1 @@
-from slobot import *
+from slobot.slobot import *
