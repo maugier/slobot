@@ -1,34 +1,49 @@
 %YAML 1.1
 ---
-# SLB Configuration file sample
+# SLoBot Configuration file sample
 
-# The different communication sockets we will spawn. Name is free-form string.
+# Here we declare the different networks we connect to. Should be self-explanatory
 sockets:
     freenode:
         type: irc
-        nick: NickName
+        nick: SLoBot
         user: slobot
         real: "Jabber/IRC Bridge"
         server: irc.freenode.net
         password: your_password_here
 
+    rizon:
+        type: irc
+        nick: SLoBot
+        user: slobot
+        real: "Jabber/IRC Bridge"
+        server: irc.rizon.net
+
     jabber:
         type: xmpp
-        jid: "slobot@xolus.net/slobot"
+        jid: "swissbot@xolus.net/SLB"
         password: your_password_here
         nick: SLB
 
+    # This is a read-only source that reads from a named pipe. Useful to hook third-party notification gadgets
     fifo:
         type: fifo
         path: /tmp/ircfifo
 
+    # This logs the messages to stdout
     console:
         type: console
 
-
+# Here we declare which channels to bridge on which sockets. Again, self-explanatory.
+# The fifo value is irrelevant, the console value is cosmetic only.
 routes:
     -
         freenode: "#swisslinux"
+        inframonde: "#swisslinux"
         jabber: "swisslinux@chat.swisslinux.org"
         fifo: "*" 
         console: "SLO"
+    -
+        freenode: "#rmll"
+        jabber: "rmll@chat.swisslinux.org"
+        console: "RMLL"
