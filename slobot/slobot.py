@@ -95,7 +95,7 @@ class Socket():
         """ Call this from the run() method when you receive a message. Indicate the channel on which you received it..
             message should be a tuple (type, sender, text) where type can be 'message' or 'notice'."""
         debug("Receive [{0}/{1}]: {2}".format(self.key, chan, message))
-        if message[0] == 'message' and message[1][0:4] == '!who' and not self.readonly:
+        if message[0] == 'message' and message[2][0:4] == '!who' and not self.readonly:
             self._router.users(self, chan)
         else:
             self._router.receive(self, chan, message)
@@ -265,6 +265,7 @@ class Router:
                 exception("Could not send to [{0}/{1}]".format(dest_key, dest_chan))
 
     def users(self, source, chan):
+        info("[{0}/{1}] requested user listing".format(source.key, chan))
         for (dest, dest_chan) in self.dispatch(source, chan):
             users = dest.users(dest_chan)
             if users is not None:
