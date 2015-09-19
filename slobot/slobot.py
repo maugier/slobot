@@ -167,7 +167,8 @@ class IRC(Socket):
         self.bot = Bot([irc.bot.ServerSpec(server, 6667)], nick, real)
 
     def run(self):
-        self.bot.start()
+        while(True):
+            self.bot.start()
 
     def send(self, chan, message):
         (typ, sender, contents) = message
@@ -196,8 +197,9 @@ class XMPP(Socket):
         self._bot = bot
 
     def run(self):
-        self._bot.connect()
-        self._bot.process(block=True)
+        while(True):
+            self._bot.connect()
+            self._bot.process(block=True)
 
     def _message(self, msg):
         if msg['mucnick'] == self._config['nick']:
