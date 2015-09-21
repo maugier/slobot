@@ -5,6 +5,7 @@ from irc.client import NickMask
 import argparse
 import logging
 from logging import debug, info, warn, error, exception
+import re
 import sleekxmpp
 import sys
 import threading
@@ -175,10 +176,13 @@ class IRC(Socket):
         if sender is not None:
             contents = "<{0}> {1}".format(sender, contents)
         
-        if typ == 'message':
-            self.bot.connection.privmsg(chan, contents)
-        elif typ == 'notice':
-            self.bot.connection.notice(chan, contents)
+        if typ == 'notice':
+            method = self.bot.connection.notice
+        else:
+            method = self.bot.connection.privmsg
+
+        for line in re.split('[\r\n]+', contents):
+            method(chan, line)
 
     def users(self, channel):
         try:
