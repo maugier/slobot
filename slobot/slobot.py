@@ -273,7 +273,7 @@ class Router:
         for (dest, dest_chan) in self.dispatch(source, chan):
             users = dest.users(dest_chan)
             if users is not None:
-                source.send(chan, ('message', "Users on {0}: {1}.".format(dest.key, ', '.join(dest.users(dest_chan)))))
+                source.send(chan, ('message', None, "Users on {0}: {1}.".format(dest.key, ', '.join(dest.users(dest_chan)))))
 
     def start(self):
         for (key, socket) in self._sockets.items():
