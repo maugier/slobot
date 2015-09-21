@@ -262,11 +262,18 @@ class Router:
 
 
     def receive(self, source, source_chan, message):
+        fail = []
         for (dest, dest_chan) in self.dispatch(source, source_chan):
             try:
                 dest.send(dest_chan, message)
             except Exception:
-                exception("Could not send to [{0}/{1}]".format(dest_key, dest_chan))
+                fail.append(dest.key)
+                exception("Could not send to [{0}/{1}]".format(dest.key, dest_chan))
+        if fail:
+            try:
+                source.send(source_chan, ('message', None, 'Warning: could not deliver to: {0}'.format(', '.join(fail))))
+            except:
+                exception("Failed to deliver failure notice")
 
     def users(self, source, chan):
         info("[{0}/{1}] requested user listing".format(source.key, chan))
