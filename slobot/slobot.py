@@ -186,7 +186,8 @@ class IRC(Socket):
 
     def users(self, channel):
         try:
-            return self.bot.channels[channel].users()
+            current = self.bot.connection.get_nickname()
+            return (n for n in self.bot.channels[channel].users() if n != current)
         except:
             exception("Could not retrieve IRC users")
     
@@ -226,7 +227,7 @@ class XMPP(Socket):
         self._bot.send_message(mto=channel, mbody=body, mtype='groupchat')
 
     def users(self, channel):
-        return self._bot.plugin['xep_0045'].getRoster(channel)
+        return (n for n in self._bot.plugin['xep_0045'].getRoster(channel) if n != self._config['nick'])
 
 socket_types = {
     'console': Console,
