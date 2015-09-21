@@ -151,7 +151,7 @@ class IRC(Socket):
 
         class Bot(irc.bot.SingleServerIRCBot):
             def on_welcome(bot, c, e):
-                info("IRC {0} connected".format(self.key))
+                info("[{0}] IRC connected".format(self.key))
                 for chan in self._channels:
                     c.join(chan)
 
